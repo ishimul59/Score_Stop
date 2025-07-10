@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Score Stop - Score Protector",
+  "version": "1.0.0",
+  "description": "Protect and maintain your score on captcha solving websites",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "tabs",
+    "scripting",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "score-background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.kolotibablo.com/*",
+        "*://*.2captcha.com/*", 
+        "*://*.rucaptcha.com/*",
+        "*://*.anticaptcha.com/*",
+        "*://captcha-solving-sites.com/*"
+      ],
+      "js": ["score-content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": {
+    "default_popup": "score-popup.html",
+    "default_title": "Score Stop"
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png", 
+    "128": "icon128.png"
+  }
+}

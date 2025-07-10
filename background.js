@@ -25,6 +25,47 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true; // Keep message channel open for async response
 });
 
+// Handle captcha solving logic
+async function handleCaptchaSolving(request, sendResponse) {
+  try {
+    console.log('Starting captcha solving process...');
+    
+    // Send message to content script to start solving
+    chrome.tabs.sendMessage(request.tabId, {
+      action: 'start_solving',
+      timestamp: Date.now()
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error communicating with content script:', chrome.runtime.lastError);
+        sendResponse({
+          success: false, 
+          message: 'Could not communicate with page content script'
+        });
+        return;
+      }
+      
+      if (response && response.success) {
+        sendResponse({
+          success: true, 
+          message: 'Captcha solving process started'
+        });
+      } else {
+        sendResponse({
+          success: false, 
+          message: response?.error || 'Failed to start solving process'
+        });
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error in handleCaptchaSolving:', error);
+    sendResponse({
+      success: false, 
+      message: error.message
+    });
+  }
+}
+
 // Listen for tab updates to detect captcha pages
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {

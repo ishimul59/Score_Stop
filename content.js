@@ -113,6 +113,54 @@ if (document.readyState === 'loading') {
   initialize();
 }
 
+// Auto-solve hCaptcha function
+async function autoSolveHCaptcha() {
+  try {
+    console.log('Starting auto-solve process...');
+    
+    // Find hCaptcha iframe
+    const hcaptchaIframes = document.querySelectorAll('iframe[src*="hcaptcha"]');
+    
+    if (hcaptchaIframes.length === 0) {
+      throw new Error('No hCaptcha iframe found');
+    }
+    
+    // Try to interact with hCaptcha
+    const iframe = hcaptchaIframes[0];
+    
+    // Simulate click on hCaptcha checkbox
+    const checkboxes = document.querySelectorAll('[data-hcaptcha-widget-id]');
+    
+    if (checkboxes.length > 0) {
+      console.log('Found hCaptcha checkbox, attempting to click...');
+      
+      // Create and dispatch click event
+      const clickEvent = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        view: window
+      });
+      
+      checkboxes[0].dispatchEvent(clickEvent);
+      
+      // Wait for potential challenge to load
+      setTimeout(() => {
+        console.log('Captcha interaction completed');
+        // Here you can add more sophisticated solving logic
+        // For now, just log success
+      }, 2000);
+      
+      return { success: true, message: 'Captcha interaction initiated' };
+    }
+    
+    throw new Error('No hCaptcha checkbox found');
+    
+  } catch (error) {
+    console.error('Auto-solve error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'check_captcha') {
@@ -123,5 +171,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'add_solve_buttons') {
     addSolveButton();
     sendResponse({ success: true });
+  }
+  
+  if (request.action === 'start_solving') {
+    console.log('Received start_solving command');
+    autoSolveHCaptcha().then(result => {
+      sendResponse(result);
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true; // Keep message channel open for async response
   }
 });

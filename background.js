@@ -17,9 +17,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   
   if (request.action === 'solve_captcha') {
-    console.log('Solving captcha request received');
-    // Add your captcha solving logic here
-    sendResponse({success: true, message: 'Captcha solving initiated'});
+    console.log('Solving captcha request received for tab:', request.tabId);
+    handleCaptchaSolving(request, sendResponse);
+    return true; // Keep channel open for async response
   }
   
   return true; // Keep message channel open for async response

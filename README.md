@@ -1,1 +1,1 @@
-# hcaptcha-solver-host
+# score_stop

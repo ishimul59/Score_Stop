@@ -28,7 +28,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     // Show notification
     chrome.notifications.create({
       type: 'basic',
-      iconUrl: 'icon48.png',
       title: 'Score Stop',
       message: `Score protected at ${request.score} on ${sender.tab?.url}`
     });

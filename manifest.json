@@ -3,6 +3,7 @@
   "name": "Score Stop - Score Protector", 
   "version": "1.0.0",
   "description": "Protect and maintain your score on captcha solving websites",
+  "author": "Score Stop Developer",
   "permissions": [
     "activeTab",
     "storage", 

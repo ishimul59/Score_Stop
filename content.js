@@ -1,5 +1,8 @@
 // Score Stop - Content Script for Score Protection
-console.log('Score Stop Extension loaded on:', window.location.hostname);
+console.log('🛡️ Score Stop Extension loaded on:', window.location.hostname);
+
+// Mark as loaded to track status
+window.scoreStopLoaded = true;
 
 // Configuration
 const CONFIG = {
@@ -345,7 +348,17 @@ function loadSettings() {
 
 // Listen for messages from popup/background
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Score content received message:', request);
+  console.log('🛡️ Score content received message:', request);
+  
+  if (request.action === 'ping') {
+    sendResponse({ 
+      success: true, 
+      loaded: true, 
+      url: window.location.href,
+      scoreElement: scoreElement ? 'found' : 'not found'
+    });
+    return true;
+  }
   
   if (request.action === 'toggle_protection') {
     CONFIG.PROTECTION_ENABLED = request.enabled;
@@ -476,4 +489,7 @@ new MutationObserver(() => {
   }
 }).observe(document, { subtree: true, childList: true });
 
-console.log('Score Stop Content Script fully loaded');
+console.log('🛡️ Score Stop Content Script fully loaded and initialized');
+console.log('🛡️ Current configuration:', CONFIG);
+console.log('🛡️ Score element found:', scoreElement ? 'Yes' : 'No');
+console.log('🛡️ Extension ready for:', window.location.hostname);

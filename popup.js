@@ -1,5 +1,15 @@
 // Score Stop - Popup Script
-console.log('Score Stop popup loaded');
+console.log('🛡️ Score Stop popup loaded');
+
+// Enhanced logging for debugging
+function debugLog(message, data = null) {
+  const timestamp = new Date().toLocaleTimeString();
+  if (data) {
+    console.log(`[${timestamp}] 🛡️ Popup:`, message, data);
+  } else {
+    console.log(`[${timestamp}] 🛡️ Popup:`, message);
+  }
+}
 
 // DOM elements
 let scoreValue, scoreLabel, statusIndicator, statusText;
@@ -104,12 +114,15 @@ async function loadStatus() {
   }
   
   try {
+    debugLog('Sending message to content script on tab:', currentTab.id);
+    
     // Send message to content script
     const response = await chrome.tabs.sendMessage(currentTab.id, {
       action: 'get_score_status'
     });
     
     if (response) {
+      debugLog('Content script response received:', response);
       updateUI({
         score: response.protectedScore || response.currentScore || 0,
         isActive: response.isProtectionActive || false,
@@ -119,10 +132,21 @@ async function loadStatus() {
         extensionEnabled: response.extensionEnabled !== false && extensionEnabled
       });
     } else {
+      debugLog('No response from content script');
       updateUI({ score: 0, isActive: false, enabled: false, extensionEnabled: extensionEnabled });
     }
   } catch (error) {
-    console.log('Content script not available:', error.message);
+    debugLog('❌ Content script communication error:', error.message);
+    
+    // Try to ping content script to check if it's loaded
+    try {
+      const pingResponse = await chrome.tabs.sendMessage(currentTab.id, { action: 'ping' });
+      debugLog('Content script ping successful:', pingResponse);
+    } catch (pingError) {
+      debugLog('❌ Content script not responding to ping:', pingError.message);
+      addLog('Content script not loaded. Try refreshing the page.');
+    }
+    
     updateUI({ score: 0, isActive: false, enabled: false, extensionEnabled: extensionEnabled });
   }
 }

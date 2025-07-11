@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    
+    .title {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    
+    .subtitle {
+      font-size: 12px;
+      opacity: 0.8;
+    }
+    
+    .status-card {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .score-display {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+    
+    .score-value {
+      font-size: 28px;
+      font-weight: bold;
+      color: #4CAF50;
+      margin-bottom: 5px;
+    }
+    
+    .score-value.protected {
+      color: #FFD700;
+    }
+    
+    .score-label {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+    
+    .protection-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .status-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ff4444;
+    }
+    
+    .status-indicator.active {
+      background: #4CAF50;
+      box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+    }
+    
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    button {
+      padding: 12px 20px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+    
+    .primary-btn {
+      background: #4CAF50;
+      color: white;
+    }
+    
+    .primary-btn:hover {
+      background: #45a049;
+      transform: translateY(-1px);
+    }
+    
+    .primary-btn:disabled {
+      background: #cccccc;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .danger-btn {
+      background: #f44336;
+      color: white;
+    }
+    
+    .danger-btn:hover {
+      background: #da190b;
+    }
+    
+    .secondary-btn {
+      background: rgba(255, 255, 255, 0.2);
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    .secondary-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .setting-label {
+      font-size: 14px;
+    }
+    
+    .setting-input {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 4px;
+      padding: 6px 10px;
+      color: white;
+      width: 80px;
+      text-align: center;
+    }
+    
+    .setting-input::placeholder {
+      color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .footer {
+      margin-top: 20px;
+      text-align: center;
+      font-size: 11px;
+      opacity: 0.7;
+    }
+    
+    .log {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-family: monospace;
+      max-height: 100px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    
+    .hidden {
+      display: none;
+    }
+    
+    /* Extension Toggle Styles */
+    .extension-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    
+    .toggle-label {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    
+    .toggle-switch {
+      position: relative;
+      display: inline-block;
+      width: 50px;
+      height: 25px;
+      margin: 0 10px;
+    }
+    
+    .toggle-switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    
+    .toggle-slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #ccc;
+      transition: .4s;
+      border-radius: 25px;
+    }
+    
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 19px;
+      width: 19px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .4s;
+      border-radius: 50%;
+    }
+    
+    input:checked + .toggle-slider {
+      background-color: #4CAF50;
+    }
+    
+    input:checked + .toggle-slider:before {
+      transform: translateX(25px);
+    }
+    
+    .status-text {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    
+    .extension-disabled {
+      opacity: 0.5;
+      pointer-events: none;
+      position: relative;
+    }
+    
+    .extension-disabled::after {
+      content: '🚫 Extension Disabled';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(244, 67, 54, 0.9);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: bold;
+      z-index: 10;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">Score Stop</div>
+    <div class="subtitle">Captcha Score Protector</div>
+  </div>
+  
+  <div class="status-card">
+    <div class="extension-toggle">
+      <span class="toggle-label">Extension Status:</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="extensionToggle" checked>
+        <span class="toggle-slider"></span>
+      </label>
+      <span id="extensionStatus" class="status-text">Enabled</span>
+    </div>
+    <div style="font-size: 11px; opacity: 0.7; margin-top: 5px; text-align: center;">
+      Turn off to completely disable score protection
+    </div>
+  </div>
+  
+  <div class="status-card">
+    <div class="score-display">
+      <div class="score-value" id="scoreValue">0.0</div>
+      <div class="score-label" id="scoreLabel">Current Score</div>
+    </div>
+    
+    <div class="protection-status">
+      <div class="status-indicator" id="statusIndicator"></div>
+      <span id="statusText">Protection Inactive</span>
+    </div>
+  </div>
+  
+  <div class="status-card">
+    <div class="setting-row">
+      <span class="setting-label">Target Score:</span>
+      <input type="number" 
+             class="setting-input" 
+             id="targetScore" 
+             value="0.7" 
+             min="0.1" 
+             max="1.0" 
+             step="0.01"
+             placeholder="0.7">
+    </div>
+    
+    <div class="setting-row">
+      <span class="setting-label">Site Detected:</span>
+      <span id="siteStatus">Checking...</span>
+    </div>
+  </div>
+  
+  <div class="controls">
+    <button id="toggleBtn" class="primary-btn">
+      🛡️ Activate Protection
+    </button>
+    
+    <button id="resetBtn" class="danger-btn">
+      🔄 Reset Protection
+    </button>
+    
+    <button id="refreshBtn" class="secondary-btn">
+      🔍 Refresh Status
+    </button>
+    
+    <button id="debugBtn" class="secondary-btn">
+      🐛 Debug Elements
+    </button>
+  </div>
+  
+  <div class="footer">
+    <div>Score Stop v1.0.0</div>
+    <div>Keep your captcha score high! 💪</div>
+  </div>
+  
+  <div class="log hidden" id="debugLog"></div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

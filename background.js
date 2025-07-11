@@ -13,7 +13,8 @@ chrome.runtime.onInstalled.addListener(() => {
       targetScore: 0.7,
       enabled: true,
       timestamp: Date.now()
-    }
+    },
+    extensionEnabled: true // Default extension to enabled
   });
 });
 

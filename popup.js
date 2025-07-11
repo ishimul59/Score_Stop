@@ -4,13 +4,14 @@ console.log('Score Stop popup loaded');
 // DOM elements
 let scoreValue, scoreLabel, statusIndicator, statusText;
 let toggleBtn, resetBtn, refreshBtn, debugBtn, targetScore, siteStatus;
-let debugLog;
+let debugLog, extensionToggle, extensionStatus;
 
 // State variables
 let currentTab = null;
 let isProtectionActive = false;
 let currentScore = 0;
 let protectedScore = 0.7;
+let isExtensionEnabled = true;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -45,6 +46,8 @@ function initializeElements() {
   targetScore = document.getElementById('targetScore');
   siteStatus = document.getElementById('siteStatus');
   debugLog = document.getElementById('debugLog');
+  extensionToggle = document.getElementById('extensionToggle');
+  extensionStatus = document.getElementById('extensionStatus');
 }
 
 // Get current active tab
@@ -86,11 +89,16 @@ function updateSiteStatus(detected, url) {
 
 // Load current status from content script
 async function loadStatus() {
+  // First load extension status from storage
+  const storageResult = await chrome.storage.local.get(['extensionEnabled']);
+  const extensionEnabled = storageResult.extensionEnabled !== false; // Default to true if not set
+  
   if (!currentTab || !currentTab.id) {
     updateUI({
       score: 0,
       isActive: false,
-      enabled: false
+      enabled: false,
+      extensionEnabled: extensionEnabled
     });
     return;
   }
@@ -107,14 +115,15 @@ async function loadStatus() {
         isActive: response.isProtectionActive || false,
         enabled: response.enabled || false,
         currentScore: response.currentScore || 0,
-        protectedScore: response.protectedScore || 0.7
+        protectedScore: response.protectedScore || 0.7,
+        extensionEnabled: response.extensionEnabled !== false && extensionEnabled
       });
     } else {
-      updateUI({ score: 0, isActive: false, enabled: false });
+      updateUI({ score: 0, isActive: false, enabled: false, extensionEnabled: extensionEnabled });
     }
   } catch (error) {
     console.log('Content script not available:', error.message);
-    updateUI({ score: 0, isActive: false, enabled: false });
+    updateUI({ score: 0, isActive: false, enabled: false, extensionEnabled: extensionEnabled });
   }
 }
 
@@ -159,10 +168,30 @@ function updateUI(status) {
     }
   }
   
+  // Update extension toggle
+  if (extensionToggle && extensionStatus) {
+    isExtensionEnabled = status.extensionEnabled !== false;
+    extensionToggle.checked = isExtensionEnabled;
+    extensionStatus.textContent = isExtensionEnabled ? 'Enabled' : 'Disabled';
+    extensionStatus.style.color = isExtensionEnabled ? '#4CAF50' : '#ff4444';
+    
+    // Disable/enable all other controls based on extension status
+    const controlsContainer = document.querySelector('.controls');
+    const settingsCards = document.querySelectorAll('.status-card:not(:first-child)');
+    
+    if (isExtensionEnabled) {
+      controlsContainer?.classList.remove('extension-disabled');
+      settingsCards.forEach(card => card.classList.remove('extension-disabled'));
+    } else {
+      controlsContainer?.classList.add('extension-disabled');
+      settingsCards.forEach(card => card.classList.add('extension-disabled'));
+    }
+  }
+  
   // Store current state
   isProtectionActive = status.isActive;
   currentScore = status.currentScore || 0;
-  protectedScore = status.protectedScore || 0.9;
+  protectedScore = status.protectedScore || 0.7;
   
   // Update target score input
   if (targetScore) {
@@ -197,6 +226,11 @@ function setupEventListeners() {
     targetScore.addEventListener('change', updateTargetScore);
   }
   
+  // Extension toggle
+  if (extensionToggle) {
+    extensionToggle.addEventListener('change', toggleExtension);
+  }
+  
   // Debug log toggle (double click on title)
   const title = document.querySelector('.title');
   if (title) {
@@ -229,7 +263,7 @@ async function toggleProtection() {
       }
     } else {
       // Activate protection manually at current target score
-      const targetScoreValue = parseFloat(targetScore.value) || 0.9;
+      const targetScoreValue = parseFloat(targetScore.value) || 0.7;
       
       const response = await chrome.tabs.sendMessage(currentTab.id, {
         action: 'activate_protection_manual',
@@ -412,6 +446,60 @@ function showTemporaryError(message) {
     input.style.borderColor = originalColor;
     input.style.boxShadow = '';
   }, 2000);
+}
+
+// Toggle extension on/off
+async function toggleExtension() {
+  if (!currentTab || !currentTab.id) {
+    addLog('Error: No active tab');
+    return;
+  }
+  
+  try {
+    const enabled = extensionToggle.checked;
+    
+    // Save extension status to storage
+    await chrome.storage.local.set({
+      extensionEnabled: enabled
+    });
+    
+    // Notify content script
+    const response = await chrome.tabs.sendMessage(currentTab.id, {
+      action: 'toggle_extension',
+      enabled: enabled
+    });
+    
+    if (response && response.success) {
+      addLog(`Extension ${enabled ? 'enabled' : 'disabled'}`);
+      
+      // Update UI immediately
+      updateUI({
+        score: currentScore,
+        isActive: enabled ? isProtectionActive : false,
+        enabled: enabled,
+        currentScore: currentScore,
+        protectedScore: protectedScore,
+        extensionEnabled: enabled
+      });
+      
+      // Show notification
+      if (enabled) {
+        showTemporarySuccess('Extension enabled');
+      } else {
+        showTemporaryError('Extension disabled');
+      }
+      
+    } else {
+      addLog('Error: Failed to toggle extension');
+      // Revert toggle state
+      extensionToggle.checked = !enabled;
+    }
+  } catch (error) {
+    console.error('Error toggling extension:', error);
+    addLog('Error: ' + error.message);
+    // Revert toggle state
+    extensionToggle.checked = !extensionToggle.checked;
+  }
 }
 
 // Start real-time updates

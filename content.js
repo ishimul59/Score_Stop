@@ -6,7 +6,8 @@ const CONFIG = {
   TARGET_SCORE: 0.7,
   MIN_SCORE: 0.6,
   MONITOR_INTERVAL: 2000, // 2 seconds
-  PROTECTION_ENABLED: true
+  PROTECTION_ENABLED: true,
+  EXTENSION_ENABLED: true
 };
 
 // Score monitoring variables
@@ -156,6 +157,9 @@ function isScoreText(text) {
 function startScoreMonitoring() {
   // Continuous monitoring
   setInterval(() => {
+    // Only monitor if extension is enabled
+    if (!CONFIG.EXTENSION_ENABLED) return;
+    
     if (!scoreElement) {
       findScoreElement();
       return;
@@ -180,7 +184,7 @@ function startScoreMonitoring() {
 
 // Main score protection logic
 function checkAndProtectScore() {
-  if (!scoreElement || !CONFIG.PROTECTION_ENABLED) return;
+  if (!scoreElement || !CONFIG.PROTECTION_ENABLED || !CONFIG.EXTENSION_ENABLED) return;
   
   const displayedScore = parseFloat(scoreElement.textContent) || 0;
   
@@ -315,19 +319,26 @@ function saveSettings() {
   };
   
   chrome.storage.local.set({
-    scoreStopSettings: settings
+    scoreStopSettings: settings,
+    extensionEnabled: CONFIG.EXTENSION_ENABLED
   });
 }
 
 // Load settings from storage
 function loadSettings() {
-  chrome.storage.local.get(['scoreStopSettings'], (result) => {
+  chrome.storage.local.get(['scoreStopSettings', 'extensionEnabled'], (result) => {
     if (result.scoreStopSettings) {
       const settings = result.scoreStopSettings;
       protectedScore = settings.protectedScore || CONFIG.TARGET_SCORE;
       isProtectionActive = settings.isProtectionActive || false;
       
       console.log('Settings loaded:', settings);
+    }
+    
+    // Load extension enabled status
+    if (result.extensionEnabled !== undefined) {
+      CONFIG.EXTENSION_ENABLED = result.extensionEnabled;
+      console.log('Extension enabled status:', CONFIG.EXTENSION_ENABLED);
     }
   });
 }
@@ -346,7 +357,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       currentScore,
       protectedScore,
       isProtectionActive,
-      enabled: CONFIG.PROTECTION_ENABLED
+      enabled: CONFIG.PROTECTION_ENABLED,
+      extensionEnabled: CONFIG.EXTENSION_ENABLED
     });
   }
   
@@ -385,6 +397,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'debug_score_elements') {
     const debugInfo = getDebugInfo();
     sendResponse({ success: true, debugInfo });
+  }
+  
+  if (request.action === 'toggle_extension') {
+    CONFIG.EXTENSION_ENABLED = request.enabled;
+    
+    if (!CONFIG.EXTENSION_ENABLED) {
+      // If extension is disabled, reset protection
+      isProtectionActive = false;
+      
+      // Remove protection styling
+      if (scoreElement) {
+        scoreElement.classList.remove('score-protected');
+        scoreElement.removeAttribute('title');
+      }
+      
+      showNotification('Extension Disabled', 'Score protection has been turned off');
+    } else {
+      showNotification('Extension Enabled', 'Score protection is now active');
+    }
+    
+    saveSettings();
+    sendResponse({ success: true, enabled: CONFIG.EXTENSION_ENABLED });
   }
   
   return true; // Keep channel open for async response

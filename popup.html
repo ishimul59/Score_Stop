@@ -201,10 +201,11 @@
       <input type="number" 
              class="setting-input" 
              id="targetScore" 
-             value="0.9" 
+             value="0.7" 
              min="0.1" 
              max="1.0" 
-             step="0.1">
+             step="0.01"
+             placeholder="0.7">
     </div>
     
     <div class="setting-row">
@@ -225,6 +226,10 @@
     <button id="refreshBtn" class="secondary-btn">
       🔍 Refresh Status
     </button>
+    
+    <button id="debugBtn" class="secondary-btn">
+      🐛 Debug Elements
+    </button>
   </div>
   
   <div class="footer">
@@ -234,6 +239,6 @@
   
   <div class="log hidden" id="debugLog"></div>
   
-  <script src="score-popup.js"></script>
+  <script src="popup.js"></script>
 </body>
 </html>

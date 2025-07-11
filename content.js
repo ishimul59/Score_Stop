@@ -3,34 +3,39 @@ console.log('Score Stop Extension loaded on:', window.location.hostname);
 
 // Configuration
 const CONFIG = {
-  TARGET_SCORE: 0.9,
-  MIN_SCORE: 0.85,
+  TARGET_SCORE: 0.7,
+  MIN_SCORE: 0.6,
   MONITOR_INTERVAL: 2000, // 2 seconds
   PROTECTION_ENABLED: true
 };
 
 // Score monitoring variables
 let currentScore = 0;
-let protectedScore = 0.9;
+let protectedScore = 0.7;
 let isProtectionActive = false;
 let scoreElement = null;
 let originalScore = 0;
 let scoreObserver = null;
 
-// Common score selectors for different sites
+// Common score selectors for different sites (prioritized order)
 const SCORE_SELECTORS = [
-  // Kolotibablo
-  '.score', '#score', '.rating', '#rating',
-  '[class*="score"]', '[id*="score"]',
-  '[class*="rating"]', '[id*="rating"]',
+  // Kolotibablo specific (high priority)
+  '.rating', '#rating', '.user-rating',
+  '[class*="rating"]:not([class*="count"])',
+  '[id*="rating"]:not([id*="count"])',
   
-  // 2captcha
-  '.balance', '#balance', '.rate', '#rate',
+  // Score selectors (avoid count/business)
+  '.score:not([class*="count"]):not([class*="business"])', 
+  '#score:not([id*="count"]):not([id*="business"])',
+  '.user-score', '.accuracy', '#accuracy',
   
-  // Generic selectors
-  '[data-score]', '[data-rating]', 
-  '.user-score', '.user-rating',
-  '.accuracy', '#accuracy'
+  // 2captcha specific
+  '.rate', '#rate', '.balance', '#balance',
+  
+  // Generic selectors (lower priority)
+  '[data-score]:not([data-count])', '[data-rating]:not([data-count])',
+  '[class*="score"]:not([class*="count"]):not([class*="business"])',
+  '[id*="score"]:not([id*="count"]):not([id*="business"])'
 ];
 
 // Initialize score protection
@@ -54,30 +59,70 @@ function initializeScoreProtection() {
 
 // Find score element on page
 function findScoreElement() {
+  console.log('🔍 Searching for score element...');
+  
+  // First try specific selectors
   for (const selector of SCORE_SELECTORS) {
-    const element = document.querySelector(selector);
-    if (element && isValidScoreElement(element)) {
-      scoreElement = element;
-      originalScore = parseFloat(element.textContent) || 0;
-      console.log('Score element found:', selector, 'Current score:', originalScore);
-      return true;
+    const elements = document.querySelectorAll(selector);
+    for (const element of elements) {
+      if (isValidScoreElement(element) && !isBusinessCountElement(element)) {
+        scoreElement = element;
+        originalScore = parseFloat(element.textContent) || 0;
+        console.log('✅ Score element found:', selector, 'Current score:', originalScore, element);
+        return true;
+      }
     }
   }
   
-  // If not found, try more generic approach
+  // If not found, try more generic approach with filtering
   const allElements = document.querySelectorAll('*');
+  const potentialScoreElements = [];
+  
   for (const element of allElements) {
     const text = element.textContent.trim();
-    if (isScoreText(text) && element.children.length === 0) {
-      scoreElement = element;
-      originalScore = parseFloat(text) || 0;
-      console.log('Score element found via text analysis:', text);
-      return true;
+    if (isScoreText(text) && element.children.length === 0 && !isBusinessCountElement(element)) {
+      potentialScoreElements.push({
+        element,
+        text,
+        score: parseFloat(text.replace(/[^\d.]/g, ''))
+      });
     }
   }
   
-  console.log('Score element not found, will retry...');
+  // Sort by most likely to be actual score (not count)
+  potentialScoreElements.sort((a, b) => {
+    // Prefer elements with decimal scores (0.XX format)
+    const aIsDecimal = a.score < 1.0;
+    const bIsDecimal = b.score < 1.0;
+    if (aIsDecimal && !bIsDecimal) return -1;
+    if (!aIsDecimal && bIsDecimal) return 1;
+    return 0;
+  });
+  
+  if (potentialScoreElements.length > 0) {
+    const best = potentialScoreElements[0];
+    scoreElement = best.element;
+    originalScore = best.score;
+    console.log('✅ Score element found via analysis:', best.text, 'Score:', originalScore);
+    return true;
+  }
+  
+  console.log('❌ Score element not found, will retry...');
   return false;
+}
+
+// Check if element is likely a business count (not score)
+function isBusinessCountElement(element) {
+  const text = element.textContent.toLowerCase();
+  const className = element.className.toLowerCase();
+  const id = element.id.toLowerCase();
+  
+  // Avoid elements that are clearly counts/business metrics
+  const businessKeywords = ['count', 'total', 'business', 'task', 'job', 'work', 'complete'];
+  
+  return businessKeywords.some(keyword => 
+    text.includes(keyword) || className.includes(keyword) || id.includes(keyword)
+  );
 }
 
 // Check if element contains valid score
@@ -88,9 +133,23 @@ function isValidScoreElement(element) {
 
 // Check if text represents a score
 function isScoreText(text) {
-  // Score patterns: 0.95, 95%, 0.9, etc.
-  const scorePattern = /^(0?\.\d{1,2}|\d{1,2}(\.\d{1,2})?%?)$/;
-  return scorePattern.test(text) && !isNaN(parseFloat(text));
+  // Clean the text
+  const cleanText = text.trim().replace(/[^\d.%]/g, '');
+  
+  // Score patterns: 0.95, 95%, 0.9, etc. (but not large numbers like counts)
+  const scorePattern = /^(0?\.\d{1,3}|\d{1,2}(\.\d{1,3})?%?)$/;
+  
+  if (!scorePattern.test(cleanText)) return false;
+  
+  const numValue = parseFloat(cleanText);
+  if (isNaN(numValue)) return false;
+  
+  // Valid score ranges (0.0 to 1.0 or 0% to 100%)
+  if (cleanText.includes('%')) {
+    return numValue >= 0 && numValue <= 100;
+  } else {
+    return numValue >= 0 && numValue <= 1.0;
+  }
 }
 
 // Start monitoring score changes
@@ -142,11 +201,16 @@ function checkAndProtectScore() {
   }
   
   // Log score changes
-  console.log('Score check:', {
-    displayed: displayedScore,
-    protected: protectedScore,
-    active: isProtectionActive
-  });
+  // Debug logging (less frequent)
+  if (Math.random() < 0.1) { // Only log 10% of the time to avoid spam
+    console.log('🔍 Score Check:', {
+      displayed: displayedScore,
+      protected: protectedScore,
+      active: isProtectionActive,
+      element: scoreElement?.tagName + (scoreElement?.className ? '.' + scoreElement.className : ''),
+      elementText: scoreElement?.textContent?.trim()
+    });
+  }
 }
 
 // Activate score protection
@@ -289,15 +353,77 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'reset_protection') {
     isProtectionActive = false;
     protectedScore = CONFIG.TARGET_SCORE;
+    
+    // Remove protection styling
+    if (scoreElement) {
+      scoreElement.classList.remove('score-protected');
+      scoreElement.removeAttribute('title');
+    }
+    
     saveSettings();
+    showNotification('Protection Reset', 'Score protection has been reset');
     sendResponse({ success: true });
   }
   
   if (request.action === 'set_target_score') {
     CONFIG.TARGET_SCORE = request.score;
+    protectedScore = request.score; // Update protected score too
+    saveSettings();
     sendResponse({ success: true });
   }
+  
+  if (request.action === 'activate_protection_manual') {
+    const targetScoreValue = request.targetScore || CONFIG.TARGET_SCORE;
+    
+    // Force activate protection at specified score
+    CONFIG.TARGET_SCORE = targetScoreValue;
+    activateProtection(targetScoreValue);
+    
+    sendResponse({ success: true, protectedScore: targetScoreValue });
+  }
+  
+  if (request.action === 'debug_score_elements') {
+    const debugInfo = getDebugInfo();
+    sendResponse({ success: true, debugInfo });
+  }
+  
+  return true; // Keep channel open for async response
 });
+
+// Get debug information about detected elements
+function getDebugInfo() {
+  const allPotentialElements = [];
+  
+  // Check all selectors
+  for (const selector of SCORE_SELECTORS) {
+    const elements = document.querySelectorAll(selector);
+    for (const element of elements) {
+      allPotentialElements.push({
+        selector,
+        text: element.textContent.trim(),
+        tagName: element.tagName,
+        className: element.className,
+        id: element.id,
+        isValid: isValidScoreElement(element),
+        isBusinessCount: isBusinessCountElement(element),
+        isCurrent: element === scoreElement
+      });
+    }
+  }
+  
+  return {
+    currentElement: scoreElement ? {
+      text: scoreElement.textContent.trim(),
+      tagName: scoreElement.tagName,
+      className: scoreElement.className,
+      id: scoreElement.id
+    } : null,
+    currentScore,
+    protectedScore,
+    isProtectionActive,
+    allPotentialElements
+  };
+}
 
 // Initialize when page loads
 if (document.readyState === 'loading') {

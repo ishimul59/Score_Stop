@@ -3,14 +3,14 @@ console.log('Score Stop popup loaded');
 
 // DOM elements
 let scoreValue, scoreLabel, statusIndicator, statusText;
-let toggleBtn, resetBtn, refreshBtn, targetScore, siteStatus;
+let toggleBtn, resetBtn, refreshBtn, debugBtn, targetScore, siteStatus;
 let debugLog;
 
 // State variables
 let currentTab = null;
 let isProtectionActive = false;
 let currentScore = 0;
-let protectedScore = 0.9;
+let protectedScore = 0.7;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -41,6 +41,7 @@ function initializeElements() {
   toggleBtn = document.getElementById('toggleBtn');
   resetBtn = document.getElementById('resetBtn');
   refreshBtn = document.getElementById('refreshBtn');
+  debugBtn = document.getElementById('debugBtn');
   targetScore = document.getElementById('targetScore');
   siteStatus = document.getElementById('siteStatus');
   debugLog = document.getElementById('debugLog');
@@ -106,7 +107,7 @@ async function loadStatus() {
         isActive: response.isProtectionActive || false,
         enabled: response.enabled || false,
         currentScore: response.currentScore || 0,
-        protectedScore: response.protectedScore || 0.9
+        protectedScore: response.protectedScore || 0.7
       });
     } else {
       updateUI({ score: 0, isActive: false, enabled: false });
@@ -147,14 +148,15 @@ function updateUI(status) {
   // Update toggle button
   if (toggleBtn) {
     if (status.isActive) {
-      toggleBtn.textContent = '🛑 Deactivate Protection';
+      toggleBtn.textContent = '🛑 Stop Protection';
       toggleBtn.className = 'danger-btn';
+      toggleBtn.disabled = false;
     } else {
-      toggleBtn.textContent = '🛡️ Activate Protection';
+      const targetValue = parseFloat(targetScore?.value || 0.7);
+      toggleBtn.textContent = `🛡️ Protect at ${targetValue}`;
       toggleBtn.className = 'primary-btn';
+      toggleBtn.disabled = false; // Always enable manual activation
     }
-    
-    toggleBtn.disabled = !status.enabled;
   }
   
   // Store current state
@@ -185,6 +187,11 @@ function setupEventListeners() {
     refreshBtn.addEventListener('click', refreshStatus);
   }
   
+  // Debug button
+  if (debugBtn) {
+    debugBtn.addEventListener('click', debugElements);
+  }
+  
   // Target score input
   if (targetScore) {
     targetScore.addEventListener('change', updateTargetScore);
@@ -208,19 +215,33 @@ async function toggleProtection() {
     toggleBtn.disabled = true;
     toggleBtn.textContent = '⏳ Processing...';
     
-    const action = isProtectionActive ? 'toggle_protection' : 'toggle_protection';
-    const enabled = !isProtectionActive;
-    
-    const response = await chrome.tabs.sendMessage(currentTab.id, {
-      action: action,
-      enabled: enabled
-    });
-    
-    if (response && response.success) {
-      addLog(`Protection ${enabled ? 'activated' : 'deactivated'}`);
-      await loadStatus(); // Refresh status
+    if (isProtectionActive) {
+      // Deactivate protection
+      const response = await chrome.tabs.sendMessage(currentTab.id, {
+        action: 'reset_protection'
+      });
+      
+      if (response && response.success) {
+        addLog('Protection deactivated');
+        await loadStatus();
+      } else {
+        addLog('Error: Failed to deactivate protection');
+      }
     } else {
-      addLog('Error: Failed to toggle protection');
+      // Activate protection manually at current target score
+      const targetScoreValue = parseFloat(targetScore.value) || 0.9;
+      
+      const response = await chrome.tabs.sendMessage(currentTab.id, {
+        action: 'activate_protection_manual',
+        targetScore: targetScoreValue
+      });
+      
+      if (response && response.success) {
+        addLog(`Protection activated at ${targetScoreValue}`);
+        await loadStatus();
+      } else {
+        addLog('Error: Failed to activate protection');
+      }
     }
   } catch (error) {
     console.error('Error toggling protection:', error);
@@ -276,14 +297,73 @@ async function refreshStatus() {
   addLog('Status refreshed');
 }
 
+// Debug elements detection
+async function debugElements() {
+  if (!currentTab || !currentTab.id) {
+    addLog('Error: No active tab');
+    return;
+  }
+  
+  try {
+    debugBtn.disabled = true;
+    debugBtn.textContent = '⏳ Debugging...';
+    
+    const response = await chrome.tabs.sendMessage(currentTab.id, {
+      action: 'debug_score_elements'
+    });
+    
+    if (response && response.success) {
+      const debugInfo = response.debugInfo;
+      
+      // Show debug log
+      if (debugLog) {
+        debugLog.classList.remove('hidden');
+      }
+      
+      addLog('=== DEBUG INFO ===');
+      addLog(`Current Element: ${debugInfo.currentElement ? 
+        `${debugInfo.currentElement.tagName}.${debugInfo.currentElement.className} = "${debugInfo.currentElement.text}"` : 
+        'None found'}`);
+      addLog(`Current Score: ${debugInfo.currentScore}`);
+      addLog(`Protected Score: ${debugInfo.protectedScore}`);
+      addLog(`Protection Active: ${debugInfo.isProtectionActive}`);
+      addLog('');
+      addLog('All Potential Elements:');
+      
+      debugInfo.allPotentialElements.forEach((element, index) => {
+        const status = element.isCurrent ? '[CURRENT]' : 
+                      element.isBusinessCount ? '[BUSINESS COUNT]' : 
+                      element.isValid ? '[VALID]' : '[INVALID]';
+        addLog(`${index + 1}. ${status} ${element.selector}: "${element.text}"`);
+      });
+      
+      addLog('=== END DEBUG ===');
+    } else {
+      addLog('Error: Failed to get debug info');
+    }
+  } catch (error) {
+    console.error('Error debugging elements:', error);
+    addLog('Error: ' + error.message);
+  } finally {
+    debugBtn.disabled = false;
+    debugBtn.textContent = '🐛 Debug Elements';
+  }
+}
+
 // Update target score
 async function updateTargetScore() {
-  if (!currentTab || !currentTab.id) return;
+  if (!currentTab || !currentTab.id) {
+    addLog('Error: No active tab');
+    return;
+  }
   
   const newTarget = parseFloat(targetScore.value);
-  if (isNaN(newTarget) || newTarget < 0.1 || newTarget > 1.0) {
-    targetScore.value = protectedScore; // Revert to previous value
-    addLog('Error: Invalid target score');
+  
+  // Better validation for score range
+      if (isNaN(newTarget) || newTarget < 0.1 || newTarget > 1.0) {
+      targetScore.value = (protectedScore || 0.7).toFixed(1); // Revert to previous value
+    addLog('Error: Target score must be between 0.1 and 1.0');
+    showTemporaryError('Invalid score range (0.1 - 1.0)');
     return;
   }
   
@@ -294,12 +374,44 @@ async function updateTargetScore() {
     });
     
     if (response && response.success) {
-      addLog(`Target score updated to ${newTarget}`);
+      protectedScore = newTarget; // Update local state
+      addLog(`✅ Target score updated to ${newTarget}`);
+      showTemporarySuccess(`Target set to ${newTarget}`);
+    } else {
+      addLog('Error: Failed to update target score');
+      showTemporaryError('Failed to update target score');
     }
   } catch (error) {
     console.error('Error updating target score:', error);
     addLog('Error: ' + error.message);
+    showTemporaryError('Communication error');
   }
+}
+
+// Show temporary success message
+function showTemporarySuccess(message) {
+  const input = targetScore;
+  const originalColor = input.style.borderColor;
+  input.style.borderColor = '#4CAF50';
+  input.style.boxShadow = '0 0 5px rgba(76, 175, 80, 0.5)';
+  
+  setTimeout(() => {
+    input.style.borderColor = originalColor;
+    input.style.boxShadow = '';
+  }, 2000);
+}
+
+// Show temporary error message
+function showTemporaryError(message) {
+  const input = targetScore;
+  const originalColor = input.style.borderColor;
+  input.style.borderColor = '#f44336';
+  input.style.boxShadow = '0 0 5px rgba(244, 67, 54, 0.5)';
+  
+  setTimeout(() => {
+    input.style.borderColor = originalColor;
+    input.style.boxShadow = '';
+  }, 2000);
 }
 
 // Start real-time updates

@@ -8,9 +8,9 @@ chrome.runtime.onInstalled.addListener(() => {
   // Set default settings
   chrome.storage.local.set({
     scoreStopSettings: {
-      protectedScore: 0.9,
+      protectedScore: 0.7,
       isProtectionActive: false,
-      targetScore: 0.9,
+      targetScore: 0.7,
       enabled: true,
       timestamp: Date.now()
     }
